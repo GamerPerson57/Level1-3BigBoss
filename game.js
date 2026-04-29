@@ -3,115 +3,178 @@ var player1, ball;
 var timer, interval = 1000/60;
 var score = 0;
 
-canvas = document.getElementById("canvas")
-context = canvas.getContext("2d")
+canvas = document.getElementById("canvas");
+context = canvas.getContext("2d");
 
+// Player settings
+let playerWidth = 40;
+let playerHeight = 250;
 
-player1 = new GameObject(canvas.width/2,750,30,200,"#b700ff")
+// Create paddle
+player1 = new GameObject(canvas.width/2 - playerWidth/2,canvas.height - 50,playerWidth,playerHeight,"#b700ff");
+player1.speed = 3;
 
-ball = new GameObject(canvas.width/2,canvas.height/2,5,10,"#0004ff");
-ball.radius = 25;
-ball.vx = 0;
+// Create ball
+ball = new GameObject(canvas.width/2,canvas.height/2,20, 20, "#0004ff");
+ball.radius = 40;
+ball.vx = 5;
 ball.vy = 0;
+ball.force = 1.5;
 
 timer = setInterval(animate, interval);
 
-
-function animate()
+function drawLine() 
 {
-    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.beginPath();
+    context.moveTo(player1.x, player1.y - player1.height / 2);
+    context.lineTo(ball.x, ball.y);
+    context.strokeStyle = "black";
+    context.lineWidth = 2;
+    context.stroke();
+}
 
+
+function drawText() {
+    context.font = "16px Arial";
+    context.fillStyle = "black";
+    context.fillText("Score: " + score, 80, 25);
+}
+
+function animate() {
+    context.clearRect(0, 0, canvas.width, canvas.height);
 
     player1.drawRect();
     ball.drawCircle();
-    ball.move();
 
-    
+    drawLine();
+    drawText();
 
 
-////// OBJECT MOVEMENT //////
+    ////// PLAYER MOVEMENT //////
 
-    // Player Movement
-    if(a)
+    // Acceleration
+    if (a) 
     {
-        player1.x -= 5;
+        player1.vx -= player1.speed; 
     }
 
-    if(d)
+    if (d) 
     {
-        player1.x += 5;
+        player1.vx += player1.speed;
     }
 
-  
-    if (player1.x < player1.width / 2) {
+    // Friction
+    player1.vx *= 0.85;   // lower = more friction
+
+    // Move paddle
+    player1.x += player1.vx;
+
+
+
+    ////// BOUNDARIES //////
+
+    // Left boundary
+    if (player1.x - player1.width / 2 < 0) 
+    {
         player1.x = player1.width / 2;
     }
 
-    if (player1.x > canvas.width - player1.width / 2) {
+    // Right boundary
+    if (player1.x + player1.width / 2 > canvas.width) 
+    {
         player1.x = canvas.width - player1.width / 2;
     }
-    
 
-////// COLLISION //////
+       
 
-// Collision With Canvas
+    ////// BALL PHYSICS //////
 
-    // Right Side
-    if (ball.x + ball.radius > canvas.width) {
-        ball.x = canvas.width / 2;
-        ball.y = canvas.height / 2;
-        ball.vx *= -1;
-        ball.vy *= 0;
-    }
+    ball.vy += 1;        // gravity
+    ball.vx *= 0.98;     // friction
 
-    // Left Side
-    if (ball.x - ball.radius < 0) {
-        ball.x = canvas.width / 2;
-        ball.y = canvas.height / 2;
-        ball.vx *= -1;
-        ball.vy *= 0;
-    }
+    ball.x += ball.vx;
+    ball.y += ball.vy;
 
-    // Top Side
-    if (ball.y + ball.radius > canvas.height) {
-        ball.vy *= -1;
-    }
+    ////// CANVAS COLLISION //////
 
-    // Bottom Side
-    if (ball.y - ball.radius < 0) {
-        ball.vy *= -1;
-    }
-
-
-// Collision With Paddles 
-
-    // PADDLE 1
-    if(ball.x - ball.radius < player1.x + player1.width / 2)
+    // Left
+    if (ball.x - ball.radius <= 0) 
     {
-        // When ball is colliding with paddle
-        if(ball.y > player1.y - player1.height/2 &&
-            ball.y < player1.y + player1.height/2)
-        {
-            // If ball hits TOP
-            if(ball.y < player1.y - player1.height/6)
-            {
-                ball.vx = 5;   // positive speed
-                ball.vy = -5;  // negative speed
-            }
-
-            // If ball hits MIDDLE
-            else if(ball.y < player1.y - player1.height/3)
-            {
-                ball.vx = 5;   // positive speed
-                ball.vy = 0;  // negative speed
-            }
-
-            // If ball hits BOTTOM
-            else
-            {
-                ball.vx = 5;   // positive speed
-                ball.vy = 5;  // negative speed
-            }
-        }
+        ball.x = ball.radius;
+        ball.vx *= -1;
     }
+
+    // Right
+    if (ball.x + ball.radius >= canvas.width) 
+    {
+        ball.x = canvas.width - ball.radius;
+        ball.vx *= -1;
+    }
+
+    // Top
+    if (ball.y - ball.radius <= 0) 
+    {
+        ball.y = ball.radius;
+        ball.vy *= -1;
+    }
+
+    // Bottom (reset)
+    if (ball.y + ball.radius >= canvas.height) 
+    {
+        ball.y = canvas.height - ball.radius;
+        ball.vy = -ball.vy * 0.67;
+
+        if (Math.abs(ball.vy) < 2) ball.vy = -2;
+
+        score = 0;
+    }
+
+    ////// PADDLE COLLISION //////
+
+    if (
+        ball.y + ball.radius >= player1.top() &&
+        ball.y - ball.radius <= player1.bottom() &&
+        ball.x + ball.radius >= player1.left() &&
+        ball.x - ball.radius <= player1.right() &&
+        ball.vy > 0
+    ) 
+    {
+        // Distance from left edge of paddle
+        let hitX = ball.x - player1.left();
+        let w = player1.width;
+
+        // Compute zones
+        let zone = hitX / w;  // 0.0 → 1.0
+
+        // Default straight up
+        ball.vx = 0;
+        ball.vy = -35;
+
+        // Outer Left 1/6
+        if (zone < 1/6) {
+            ball.vx = -ball.force * 5;
+        }
+        // Inner Left 1/6
+        else if (zone < 2/6) {
+            ball.vx = -ball.force;
+        }
+        // Center 1/3 (2/6 → 4/6)
+        else if (zone < 4/6) {
+            ball.vx = 0;
+        }
+        // Inner Right 1/6
+        else if (zone < 5/6) {
+            ball.vx = ball.force;
+        }
+        // Outer Right 1/6
+        else {
+            ball.vx = ball.force * 5;
+        }
+
+        // Move ball above paddle
+        ball.y = player1.top() - ball.radius;
+
+        score++;
+    }
+
 }
